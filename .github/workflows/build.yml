@@ -1,0 +1,58 @@
+name: Build Stripboard
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Tauri app
+        run: |
+          cd src-tauri
+          cargo build --release
+
+      - name: Show output
+        run: |
+          dir src-tauri\target\release
+          $exe = "src-tauri\target\release\stripboard.exe"
+          if (Test-Path $exe) {
+            $size = (Get-Item $exe).Length / 1MB
+            Write-Host "Stripboard.exe size: $([math]::Round($size, 2)) MB"
+          }
+
+      - name: Upload .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stripboard-Windows
+          path: src-tauri/target/release/stripboard.exe
+          retention-days: 90
+
+      - name: Upload installer (MSI/NSIS) if available
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Stripboard-Installer
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 90
+          if-no-files-found: ignore
